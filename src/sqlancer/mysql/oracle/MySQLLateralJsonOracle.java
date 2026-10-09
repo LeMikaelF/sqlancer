@@ -123,6 +123,10 @@ public class MySQLLateralJsonOracle extends LateralJsonOracle<MySQLGlobalState> 
 
     @Override
     protected String predicate(LateralTable table, String alias) {
+        return predicateThatSelectsARow(table, alias, () -> randomPredicate(table, alias));
+    }
+
+    private String randomPredicate(LateralTable table, String alias) {
         MySQLTable original = tablesByName.get(table.getName());
         List<MySQLColumn> columns = original.getColumns().stream().map(column -> new MySQLColumn(column.getName(),
                 column.getType(), column.isPrimaryKey(), column.getPrecision(), column.getScale()))

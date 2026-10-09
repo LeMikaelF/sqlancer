@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import sqlancer.IgnoreMeException;
@@ -54,6 +55,7 @@ import sqlancer.common.query.SQLancerResultSet;
 public abstract class LateralJsonOracle<G extends SQLGlobalState<?, ?>> implements TestOracle<G> {
 
     private static final int MAX_REPORTED_ROWS = 10;
+    private static final int MAX_PREDICATE_ATTEMPTS = 3;
 
     protected final G state;
     protected final ExpectedErrors errors;
@@ -124,7 +126,8 @@ public abstract class LateralJsonOracle<G extends SQLGlobalState<?, ?>> implemen
     protected abstract List<LateralTable> getTables() throws SQLException;
 
     /**
-     * Generates a random predicate on the columns of a table.
+     * Generates a random predicate on the columns of a table. Use {@link #predicateThatSelectsARow} to get a predicate
+     * that selects at least one row.
      *
      * @param table
      *            the table
@@ -412,6 +415,56 @@ public abstract class LateralJsonOracle<G extends SQLGlobalState<?, ?>> implemen
 
     protected static String joinAlias(int position) {
         return "s" + position;
+    }
+
+    /**
+     * Returns the first of a few random predicates that selects at least one row of the table without an error. If no
+     * predicate does, it returns TRUE. A predicate that selects no row makes most comparisons compare two empty
+     * results.
+     *
+     * @param table
+     *            the table
+     * @param alias
+     *            the alias of the table in the query
+     * @param randomPredicate
+     *            makes a random predicate on the columns of the table
+     *
+     * @return the predicate as SQL text
+     */
+    protected final String predicateThatSelectsARow(LateralTable table, String alias,
+            Supplier<String> randomPredicate) {
+        for (int attempt = 0; attempt < MAX_PREDICATE_ATTEMPTS; attempt++) {
+            String predicate = randomPredicate.get();
+            if (countRows(table, alias, predicate) > 0) {
+                return predicate;
+            }
+        }
+        return "TRUE";
+    }
+
+    /**
+     * Returns the number of rows of the table that the predicate selects, or 0 if the predicate causes an expected
+     * error.
+     *
+     * @param table
+     *            the table
+     * @param alias
+     *            the alias of the table in the predicate
+     * @param predicate
+     *            the predicate as SQL text
+     *
+     * @return the number of rows
+     */
+    protected long countRows(LateralTable table, String alias, String predicate) {
+        String query = "SELECT COUNT(*) FROM " + table.getName() + " AS " + alias + " WHERE " + predicate;
+        try (SQLancerResultSet result = new SQLQueryAdapter(query, errors).executeAndGet(state)) {
+            if (result == null || !result.next()) {
+                return 0;
+            }
+            return result.getLong(1);
+        } catch (SQLException e) {
+            throw new AssertionError(query, e);
+        }
     }
 
     protected final List<String> fetchRows(G globalState, String query, int columnCount) throws SQLException {

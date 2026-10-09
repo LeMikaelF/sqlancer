@@ -23,7 +23,6 @@ import sqlancer.common.oracle.lateral.LateralQuery.SelectedColumn;
 import sqlancer.common.oracle.lateral.LateralQuery.Subquery;
 import sqlancer.common.oracle.lateral.LateralTable;
 import sqlancer.common.query.ExpectedErrors;
-import sqlancer.common.query.SQLQueryAdapter;
 import sqlancer.postgres.PostgresGlobalState;
 import sqlancer.postgres.PostgresSchema.PostgresColumn;
 import sqlancer.postgres.PostgresSchema.PostgresDataType;
@@ -41,7 +40,6 @@ public class PostgresLateralJsonOracle extends LateralJsonOracle<PostgresGlobalS
 
     private static final List<String> PLANNER_SETTINGS = Arrays.asList("enable_indexscan", "enable_indexonlyscan",
             "enable_bitmapscan", "enable_hashjoin", "enable_mergejoin", "enable_memoize");
-    private static final int MAX_PREDICATE_ATTEMPTS = 3;
     private static final String NUMERIC = "numeric";
     private static final String DOUBLE_PRECISION = "double precision";
 
@@ -133,21 +131,7 @@ public class PostgresLateralJsonOracle extends LateralJsonOracle<PostgresGlobalS
 
     @Override
     protected String predicate(LateralTable table, String alias) {
-        for (int attempt = 0; attempt < MAX_PREDICATE_ATTEMPTS; attempt++) {
-            String predicate = randomPredicate(table, alias);
-            if (runsWithoutError("SELECT COUNT(*) FROM " + table.getName() + " AS " + alias + " WHERE " + predicate)) {
-                return predicate;
-            }
-        }
-        throw new IgnoreMeException();
-    }
-
-    private boolean runsWithoutError(String query) {
-        try {
-            return new SQLQueryAdapter(query, errors).execute(state);
-        } catch (SQLException e) {
-            throw new AssertionError(query, e);
-        }
+        return predicateThatSelectsARow(table, alias, () -> randomPredicate(table, alias));
     }
 
     private String randomPredicate(LateralTable table, String alias) {

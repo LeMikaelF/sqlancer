@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -109,6 +110,17 @@ public class TestLateralJsonOracle {
         assertTrue(LateralJsonOracle.sameRows(Arrays.asList("(1)", "(2)"), Arrays.asList("(2)", "(1)")));
         assertFalse(LateralJsonOracle.sameRows(Arrays.asList("(1)", "(1)"), Arrays.asList("(1)")));
         assertFalse(LateralJsonOracle.sameRows(Arrays.asList("(1)"), Arrays.asList("(2)")));
+    }
+
+    @Test
+    public void predicateSelectsARowOrIsTrue() {
+        FakeOracle oracle = new FakeOracle(false);
+        oracle.rowCounts.put("o.c0 = 1", 2L);
+        LateralTable table = table("t0", 3, column("c0", INTEGER));
+        Iterator<String> secondSelectsARow = Arrays.asList("o.c0 = 5", "o.c0 = 1", "o.c0 = 6").iterator();
+        assertEquals("o.c0 = 1", oracle.predicateThatSelectsARow(table, "o", secondSelectsARow::next));
+        Iterator<String> fourthSelectsARow = Arrays.asList("o.c0 = 5", "o.c0 = 6", "o.c0 = 7", "o.c0 = 1").iterator();
+        assertEquals("TRUE", oracle.predicateThatSelectsARow(table, "o", fourthSelectsARow::next));
     }
 
     private static List<LateralQuery> randomQueries(FakeOracle oracle) {
@@ -249,6 +261,7 @@ public class TestLateralJsonOracle {
     private static final class FakeOracle extends LateralJsonOracle<SQLGlobalState<?, ?>> {
 
         private final boolean avoidKnownBugs;
+        private final Map<String, Long> rowCounts = new HashMap<>();
 
         FakeOracle(boolean avoidKnownBugs) {
             super(null, new ExpectedErrors());
@@ -263,6 +276,11 @@ public class TestLateralJsonOracle {
         @Override
         protected String predicate(LateralTable table, String alias) {
             return alias + ".c0 IS NOT NULL";
+        }
+
+        @Override
+        protected long countRows(LateralTable table, String alias, String predicate) {
+            return rowCounts.getOrDefault(predicate, 0L);
         }
 
         @Override
