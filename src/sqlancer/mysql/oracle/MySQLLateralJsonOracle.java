@@ -52,6 +52,7 @@ public class MySQLLateralJsonOracle extends LateralJsonOracle<MySQLGlobalState> 
     private static final String TABLE_HINT = " USE INDEX ()";
     private static final String STRING = "string";
     private static final String NUMBER = "number";
+    static final String FLOATING_POINT_IN_HASH_INDEX = "floating point in a hash index";
     private static final String CANONICAL_STRING_TYPE = "longtext CHARACTER SET utf8mb4";
     private static final String NO_PAD_BINARY_COLLATION = "utf8mb4_0900_bin";
 
@@ -69,7 +70,22 @@ public class MySQLLateralJsonOracle extends LateralJsonOracle<MySQLGlobalState> 
             Map<String, LateralColumnType> types = new HashMap<>();
             Set<String> selectableColumns = new HashSet<>();
             Set<String> indexedColumns = new HashSet<>();
+            Set<String> hashIndexColumns = new HashSet<>();
             try (Statement statement = state.getConnection().createStatement()) {
+                try (ResultSet rs = statement.executeQuery(String.format(
+                        "SELECT TABLE_NAME, COLUMN_NAME, SEQ_IN_INDEX, INDEX_TYPE FROM information_schema.STATISTICS "
+                                + "WHERE TABLE_SCHEMA = '%s' AND COLUMN_NAME IS NOT NULL",
+                        state.getDatabaseName()))) {
+                    while (rs.next()) {
+                        String key = rs.getString(1) + "." + rs.getString(2);
+                        if (rs.getInt(3) == 1) {
+                            indexedColumns.add(key);
+                        }
+                        if ("HASH".equals(rs.getString(4))) {
+                            hashIndexColumns.add(key);
+                        }
+                    }
+                }
                 try (ResultSet rs = statement.executeQuery(String.format(
                         "SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, CHARACTER_SET_NAME, COLLATION_NAME "
                                 + "FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s'",
@@ -77,24 +93,11 @@ public class MySQLLateralJsonOracle extends LateralJsonOracle<MySQLGlobalState> 
                     while (rs.next()) {
                         String key = rs.getString(1) + "." + rs.getString(2);
                         String type = rs.getString(3);
-                        String characterSet = rs.getString(4);
-                        if (characterSet == null) {
-                            types.put(key, new LateralColumnType(type, null, NUMBER));
-                        } else {
-                            types.put(key, new LateralColumnType(type + " CHARACTER SET " + characterSet,
-                                    rs.getString(5), STRING));
-                        }
+                        types.put(key,
+                                columnType(type, rs.getString(4), rs.getString(5), hashIndexColumns.contains(key)));
                         if (!type.contains("zerofill")) {
                             selectableColumns.add(key);
                         }
-                    }
-                }
-                try (ResultSet rs = statement.executeQuery(String.format(
-                        "SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = '%s' "
-                                + "AND SEQ_IN_INDEX = 1 AND COLUMN_NAME IS NOT NULL",
-                        state.getDatabaseName()))) {
-                    while (rs.next()) {
-                        indexedColumns.add(rs.getString(1) + "." + rs.getString(2));
                     }
                 }
             }
@@ -121,6 +124,17 @@ public class MySQLLateralJsonOracle extends LateralJsonOracle<MySQLGlobalState> 
         return tables;
     }
 
+    static LateralColumnType columnType(String type, String characterSet, String collation, boolean inHashIndex) {
+        if (characterSet != null) {
+            return new LateralColumnType(type + " CHARACTER SET " + characterSet, collation, STRING);
+        }
+        LateralColumnType number = new LateralColumnType(type, null, NUMBER);
+        if (MySQLBugs.bug67978 && inHashIndex && isFloatingPoint(number)) {
+            return new LateralColumnType(type, null, FLOATING_POINT_IN_HASH_INDEX);
+        }
+        return number;
+    }
+
     @Override
     protected String predicate(LateralTable table, String alias) {
         return predicateThatSelectsARow(table, alias, () -> randomPredicate(table, alias));
@@ -139,6 +153,10 @@ public class MySQLLateralJsonOracle extends LateralJsonOracle<MySQLGlobalState> 
     @Override
     protected boolean canCompare(LateralColumnType first, LateralColumnType second) {
         if (MySQLBugs.bug120995 && (isFloat(first) || isFloat(second))) {
+            return false;
+        }
+        if (first.getGroup().equals(FLOATING_POINT_IN_HASH_INDEX)
+                || second.getGroup().equals(FLOATING_POINT_IN_HASH_INDEX)) {
             return false;
         }
         return first.getGroup().equals(second.getGroup()) && first.hasSameCollation(second);

@@ -52,6 +52,13 @@ public final class MySQLBugs {
     // SELECT 1 FROM t1, t0 WHERE IF(t1.c, t1.c, '') IN (t0.c);
     public static boolean bug120995 = true;
 
+    // https://bugs.mysql.com/bug.php?id=67978
+    // A hash index of the MEMORY engine treats -0 and 0 as different values, so a lookup of -0 does not find 0:
+    // CREATE TABLE t0(c0 DOUBLE PRIMARY KEY) ENGINE = MEMORY;
+    // INSERT INTO t0 VALUES (0), (1);
+    // SELECT COUNT(*) FROM t0 WHERE c0 = -0e0; -- returns 0, but must return 1
+    public static boolean bug67978 = true;
+
     // Not reported yet. If a join compares the same two columns with both = and <=>, and MySQL reads the second table
     // with an index on the column, the join returns the rows where the two columns are NULL:
     // CREATE TABLE t0(c0 INT, UNIQUE KEY(c0));

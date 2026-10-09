@@ -35,6 +35,20 @@ public class TestMySQLLateralJsonOracle {
     }
 
     @Test
+    public void doublesInAHashIndexAreNotComparedWhileTheBugIsOpen() {
+        LateralColumnType hashedDouble = MySQLLateralJsonOracle.columnType("double unsigned", null, null, true);
+        assertEquals(MySQLLateralJsonOracle.FLOATING_POINT_IN_HASH_INDEX, hashedDouble.getGroup());
+        assertFalse(oracle.canCompare(hashedDouble, hashedDouble));
+        assertFalse(oracle.canCompare(INT, hashedDouble));
+        LateralColumnType hashedInt = MySQLLateralJsonOracle.columnType("int", null, null, true);
+        assertTrue(oracle.canCompare(hashedInt, INT));
+        assertEquals("number", MySQLLateralJsonOracle.columnType("double", null, null, false).getGroup());
+        LateralColumnType text = MySQLLateralJsonOracle.columnType("longtext", "utf8mb4", "utf8mb4_0900_ai_ci", true);
+        assertEquals("longtext CHARACTER SET utf8mb4", text.getName());
+        assertTrue(oracle.canCompare(text, TEXT));
+    }
+
+    @Test
     public void canonicalFormMakesEqualValuesLookTheSame() {
         assertEquals("utf8mb4_0900_bin", oracle.canonicalType(TEXT).getCollation());
         assertEquals("(CONVERT(s0.v0 USING utf8mb4) COLLATE utf8mb4_0900_bin)",
