@@ -211,6 +211,25 @@ public abstract class LateralJsonOracle<G extends SQLGlobalState<?, ?>> implemen
     }
 
     /**
+     * Returns true if a LATERAL subquery returns each column in its canonical form, also without DISTINCT and LIMIT.
+     *
+     * @return true if the JSON form changes the values of a column that is not in its canonical form
+     */
+    protected boolean alwaysSelectsCanonicalForms() {
+        return false;
+    }
+
+    /**
+     * Returns the errors that a random predicate can cause in the query that makes sure that the predicate selects a
+     * row.
+     *
+     * @return the expected errors
+     */
+    protected ExpectedErrors predicateErrors() {
+        return errors;
+    }
+
+    /**
      * Returns the operators that the oracle can use to compare two columns.
      *
      * @return the comparison operators
@@ -291,14 +310,26 @@ public abstract class LateralJsonOracle<G extends SQLGlobalState<?, ?>> implemen
     protected final String selectList(LateralQuery query) {
         List<String> columns = new ArrayList<>();
         for (String column : query.getColumns()) {
-            columns.add(query.getAlias() + "." + column);
+            columns.add(outputColumn(query.getAlias() + "." + column));
         }
-        for (Join join : query.getJoins()) {
-            for (int column = 0; column < join.getSubquery().getColumns().size(); column++) {
-                columns.add(join.getAlias() + "." + columnName(column));
+        for (int join = 0; join < query.getJoins().size(); join++) {
+            for (int column = 0; column < query.getJoins().get(join).getSubquery().getColumns().size(); column++) {
+                columns.add(outputColumn(joinColumnRef(join, column)));
             }
         }
         return String.join(", ", columns);
+    }
+
+    /**
+     * Returns the SQL text of a column in the select list of the outer query.
+     *
+     * @param expression
+     *            the SQL text of the column
+     *
+     * @return the SQL text to select
+     */
+    protected String outputColumn(String expression) {
+        return expression;
     }
 
     protected final String lateralJoin(Join join) {
@@ -401,7 +432,21 @@ public abstract class LateralJsonOracle<G extends SQLGlobalState<?, ?>> implemen
         if (column.isTableColumn()) {
             return column.getTableAlias() + "." + column.getColumnName();
         }
-        return joinAlias(column.getJoin()) + "." + columnName(column.getColumn());
+        return joinColumnRef(column.getJoin(), column.getColumn());
+    }
+
+    /**
+     * Returns the SQL text of a column of a LATERAL join.
+     *
+     * @param join
+     *            the position of the join
+     * @param column
+     *            the position of the column in the select list of the subquery
+     *
+     * @return the SQL text of the column
+     */
+    protected String joinColumnRef(int join, int column) {
+        return joinAlias(join) + "." + columnName(column);
     }
 
     private String comparison(Comparison comparison) {
@@ -443,7 +488,7 @@ public abstract class LateralJsonOracle<G extends SQLGlobalState<?, ?>> implemen
 
     /**
      * Returns the number of rows of the table that the predicate selects, or 0 if the predicate causes an expected
-     * error.
+     * error. A driver can report an error when it reads a row, not when it runs the query.
      *
      * @param table
      *            the table
@@ -456,12 +501,15 @@ public abstract class LateralJsonOracle<G extends SQLGlobalState<?, ?>> implemen
      */
     protected long countRows(LateralTable table, String alias, String predicate) {
         String query = "SELECT COUNT(*) FROM " + table.getName() + " AS " + alias + " WHERE " + predicate;
-        try (SQLancerResultSet result = new SQLQueryAdapter(query, errors).executeAndGet(state)) {
+        try (SQLancerResultSet result = new SQLQueryAdapter(query, predicateErrors()).executeAndGet(state)) {
             if (result == null || !result.next()) {
                 return 0;
             }
             return result.getLong(1);
         } catch (SQLException e) {
+            if (predicateErrors().errorIsExpected(e.getMessage())) {
+                return 0;
+            }
             throw new AssertionError(query, e);
         }
     }

@@ -32,6 +32,7 @@ import sqlancer.common.oracle.lateral.LateralQuery.SelectedColumn;
 import sqlancer.common.oracle.lateral.LateralQuery.Subquery;
 import sqlancer.common.oracle.lateral.LateralQuery.SubqueryTable;
 import sqlancer.common.query.ExpectedErrors;
+import sqlancer.sqlite3.oracle.SQLite3LateralJsonOracle;
 
 public class TestLateralJsonOracle {
 
@@ -104,6 +105,62 @@ public class TestLateralJsonOracle {
                         + "FROM t1 AS i0 JOIN t2 AS i0_1 ON (i0_1.c0 = i0.c0) WHERE (i0.c0 < o.c0) OR (i0.c1 > 1) "
                         + "ORDER BY v0 DESC LIMIT 2) AS s0 ON TRUE WHERE TRUE",
                 new FakeOracle(false).lateralQuery(query));
+    }
+
+    @Test
+    public void oracleCanSelectCanonicalFormsAlsoWithoutDistinctOrLimit() {
+        FakeOracle oracle = new FakeOracle(false);
+        oracle.alwaysSelectsCanonicalForms = true;
+        for (LateralQuery query : randomQueries(oracle)) {
+            for (Join join : query.getJoins()) {
+                for (SelectedColumn column : join.getSubquery().getColumns()) {
+                    assertEquals(column.getSourceType().getGroup().equals("number"), column.isCanonical());
+                }
+            }
+        }
+    }
+
+    @Test
+    public void sqliteFormReadsTheValuesOfJsonEach() {
+        LateralColumnType integer = new LateralColumnType("integer", null, "INTEGER");
+        LateralColumnType text = new LateralColumnType("text", null, "TEXT");
+        LateralColumnType real = new LateralColumnType("quoted", null, "REAL");
+        LateralJsonOracle<?> oracle = new SQLite3LateralJsonOracle(null);
+        Join first = new Join(JoinType.CROSS, null, "s0",
+                new Subquery(Arrays.asList(new SubqueryTable("t1", "i0", new ArrayList<>())), false, Arrays.asList(
+                        new SelectedColumn(ColumnRef.tableColumn("i0", "c0"), integer, true,
+                                oracle.canonicalType(integer)),
+                        new SelectedColumn(ColumnRef.tableColumn("i0", "c1"), real, true, oracle.canonicalType(real))),
+                        new Comparison(ColumnRef.tableColumn("i0", "c0"), ComparisonOperator.EQUALS,
+                                ColumnRef.tableColumn("o", "c0")),
+                        false, "TRUE", new ArrayList<>(), null));
+        Join second = new Join(JoinType.LEFT, "TRUE", "s1",
+                new Subquery(Arrays.asList(new SubqueryTable("t2", "i1", new ArrayList<>())), true,
+                        Arrays.asList(new SelectedColumn(ColumnRef.tableColumn("i1", "c0"), text, true,
+                                oracle.canonicalType(text))),
+                        new Comparison(ColumnRef.tableColumn("i1", "c0"), ComparisonOperator.IS_DISTINCT_FROM,
+                                ColumnRef.joinColumn(0, 1)),
+                        false, "TRUE", Arrays.asList(new OrderTerm(0, true)), 2));
+        LateralQuery query = new LateralQuery("t0", "o", Arrays.asList("c0"), Arrays.asList(first, second), "TRUE");
+
+        assertEquals(
+                "SELECT quote(o.c0), quote((s0.v0 COLLATE BINARY)), quote((s0.v1 COLLATE BINARY)), "
+                        + "quote((s1.v0 COLLATE BINARY)) FROM t0 AS o CROSS JOIN LATERAL (SELECT i0.c0 AS v0, "
+                        + "quote(i0.c1) AS v1 FROM t1 AS i0 WHERE (i0.c0 = o.c0) AND (TRUE)) AS s0 LEFT JOIN LATERAL "
+                        + "(SELECT DISTINCT (i1.c0 COLLATE BINARY) AS v0 FROM t2 AS i1 WHERE (i1.c0 IS NOT "
+                        + "(s0.v1 COLLATE BINARY)) AND (TRUE) ORDER BY v0 DESC LIMIT 2) AS s1 ON TRUE WHERE TRUE",
+                oracle.lateralQuery(query));
+        assertEquals("SELECT quote(o.c0), quote(((s0.value ->> 0) COLLATE BINARY)), "
+                + "quote(((s0.value ->> 1) COLLATE BINARY)), quote(((s1.value ->> 0) COLLATE BINARY)) "
+                + "FROM t0 AS o CROSS JOIN json_each((SELECT json_group_array(json_array(i0.c0, quote(i0.c1))) "
+                + "FROM t1 AS i0 NOT INDEXED WHERE (i0.c0 = o.c0) AND (TRUE))) AS s0 LEFT JOIN json_each(("
+                + "SELECT json_group_array(json_array(q.v0)) FROM (SELECT DISTINCT (i1.c0 COLLATE BINARY) AS v0 "
+                + "FROM t2 AS i1 NOT INDEXED WHERE (i1.c0 IS NOT ((s0.value ->> 1) COLLATE BINARY)) AND (TRUE) "
+                + "ORDER BY v0 DESC LIMIT 2) AS q)) AS s1 ON TRUE WHERE TRUE",
+                oracle.jsonQuery(query, Arrays.asList(0, 1)));
+        assertEquals(oracle.lateralQuery(query), oracle.jsonQuery(query, new ArrayList<>()));
+        assertFalse(oracle.errors.errorIsExpected("Parse error: near LATERAL"));
+        assertTrue(oracle.predicateErrors().errorIsExpected("Parse error: near MATCH"));
     }
 
     @Test
@@ -262,6 +319,7 @@ public class TestLateralJsonOracle {
 
         private final boolean avoidKnownBugs;
         private final Map<String, Long> rowCounts = new HashMap<>();
+        private boolean alwaysSelectsCanonicalForms;
 
         FakeOracle(boolean avoidKnownBugs) {
             super(null, new ExpectedErrors());
@@ -328,6 +386,11 @@ public class TestLateralJsonOracle {
         @Override
         protected boolean leftJoinCanReadManyTables() {
             return !avoidKnownBugs;
+        }
+
+        @Override
+        protected boolean alwaysSelectsCanonicalForms() {
+            return alwaysSelectsCanonicalForms;
         }
 
         @Override

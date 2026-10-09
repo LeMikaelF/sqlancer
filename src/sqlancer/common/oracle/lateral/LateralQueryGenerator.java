@@ -142,7 +142,8 @@ final class LateralQueryGenerator {
         Integer limit = Randomly.getPercentage() < 0.3 ? 1 + (int) Randomly.getNotCachedInteger(0, MAX_LIMIT) : null;
         boolean canSelectOuterColumns = joinType != JoinType.LEFT || oracle.leftJoinCanSelectOuterColumns();
         List<SelectedColumn> columns = selectedColumns(localColumns,
-                canSelectOuterColumns ? visibleColumns : new ArrayList<>(), distinct || limit != null);
+                canSelectOuterColumns ? visibleColumns : new ArrayList<>(),
+                distinct || limit != null || oracle.alwaysSelectsCanonicalForms());
 
         List<SubqueryTable> tablesOfJoin = new ArrayList<>();
         tablesOfJoin.add(new SubqueryTable(subqueryTables.get(0).getName(), aliases.get(0), new ArrayList<>()));

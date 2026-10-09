@@ -13,6 +13,7 @@ import sqlancer.common.query.ExpectedErrors;
 import sqlancer.sqlite3.gen.SQLite3ExpressionGenerator;
 import sqlancer.sqlite3.oracle.SQLite3CODDTestOracle;
 import sqlancer.sqlite3.oracle.SQLite3Fuzzer;
+import sqlancer.sqlite3.oracle.SQLite3LateralJsonOracle;
 import sqlancer.sqlite3.oracle.SQLite3PivotedQuerySynthesisOracle;
 import sqlancer.sqlite3.oracle.tlp.SQLite3TLPAggregateOracle;
 import sqlancer.sqlite3.oracle.tlp.SQLite3TLPDistinctOracle;
@@ -107,6 +108,12 @@ public enum SQLite3OracleFactory implements OracleFactory<SQLite3GlobalState> {
         @Override
         public boolean requiresAllTablesToContainRows() {
             return true;
+        }
+    },
+    LATERAL_JSON {
+        @Override
+        public TestOracle<SQLite3GlobalState> create(SQLite3GlobalState globalState) throws SQLException {
+            return new SQLite3LateralJsonOracle(globalState);
         }
     };
 
