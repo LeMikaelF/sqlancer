@@ -135,7 +135,7 @@ public class MySQLLateralJsonOracle extends LateralJsonOracle<MySQLGlobalState> 
         if (MySQLBugs.bug120995 && (isFloat(first) || isFloat(second))) {
             return false;
         }
-        return !first.hasCollation() || !second.hasCollation() || first.hasSameCollation(second);
+        return first.getGroup().equals(second.getGroup()) && first.hasSameCollation(second);
     }
 
     private static boolean isFloat(LateralColumnType type) {
