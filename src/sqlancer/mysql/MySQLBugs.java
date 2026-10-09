@@ -46,6 +46,44 @@ public final class MySQLBugs {
     // Creating an index in between two NULL inserts causes inconsistent CERT result.
     public static boolean bug120712 = true;
 
+    // https://bugs.mysql.com/bug.php?id=120995
+    // MySQL does not treat this as a bug. A comparison of a FLOAT column with a string can give a different result if
+    // MySQL reads the FLOAT column with an index:
+    // SELECT 1 FROM t1, t0 WHERE IF(t1.c, t1.c, '') IN (t0.c);
+    public static boolean bug120995 = true;
+
+    // Not reported yet. If a join compares the same two columns with both = and <=>, and MySQL reads the second table
+    // with an index on the column, the join returns the rows where the two columns are NULL:
+    // CREATE TABLE t0(c0 INT, UNIQUE KEY(c0));
+    // INSERT INTO t0 VALUES (NULL), (0);
+    // SELECT * FROM t0 AS a JOIN t0 AS b ON a.c0 = b.c0 AND a.c0 <=> b.c0; -- returns (NULL, NULL) and (0, 0)
+    public static boolean bugEqualsAndNullSafeEquals = true;
+
+    // Not reported yet. If a LEFT JOIN LATERAL subquery returns a column of the outer query, and MySQL merges the
+    // subquery into the outer query, a reference to this column is not NULL when the subquery has no row:
+    // CREATE TABLE t(c0 INT);
+    // INSERT INTO t VALUES (1), (2);
+    // SELECT o.c0, s.v FROM t AS o LEFT JOIN LATERAL (SELECT o.c0 AS v FROM t AS i WHERE i.c0 > 5) AS s ON TRUE
+    // WHERE s.v IS NULL; -- returns no rows, but must return (1, NULL) and (2, NULL)
+    public static boolean bugLeftJoinLateralOuterColumn = true;
+
+    // Not reported yet. If the ON clause of a LEFT JOIN is always false, a later LEFT JOIN that compares a column with
+    // a column of this join and with a column of an earlier table returns rows that do not match:
+    // CREATE TABLE t(c0 INT);
+    // INSERT INTO t VALUES (1), (2);
+    // SELECT o.c0, s0.c0, i.c0 FROM t AS o LEFT JOIN t AS s0 ON FALSE
+    // LEFT JOIN t AS i ON i.c0 = o.c0 AND i.c0 = s0.c0;
+    // -- returns (1, NULL, 1) and (2, NULL, 2), but must return (1, NULL, NULL) and (2, NULL, NULL)
+    public static boolean bugLeftJoinOnFalseEquality = true;
+
+    // Not reported yet. A regression in MySQL 26.7.0: if the ON clause of a LEFT JOIN compares two columns with = and
+    // has an OR with a constant that is always false, MySQL does not apply the comparison:
+    // CREATE TABLE t(c0 INT);
+    // INSERT INTO t VALUES (1), (2), (NULL);
+    // SELECT COUNT(i.c0) FROM t AS o CROSS JOIN t AS s
+    // LEFT JOIN t AS i ON (s.c0 = i.c0) AND ((o.c0 = i.c0) OR FALSE); -- returns 6, but must return 2
+    public static boolean bugLeftJoinEqualityOrFalse = true;
+
     private MySQLBugs() {
     }
 

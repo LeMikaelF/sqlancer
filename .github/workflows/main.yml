@@ -468,6 +468,7 @@ jobs:
           MYSQL_AVAILABLE=true mvn -Djacoco.skip=true test -Dtest=TestMySQLTLP
           MYSQL_AVAILABLE=true mvn -Djacoco.skip=true test -Dtest=TestMySQLCERT
           MYSQL_AVAILABLE=true mvn -Djacoco.skip=true test -Dtest=TestMySQLDQE
+          MYSQL_AVAILABLE=true mvn -Djacoco.skip=true test -Dtest=TestMySQLLateralJson
 
   oceanbase:
     name: DBMS Tests (OceanBase)
@@ -518,6 +519,7 @@ jobs:
           POSTGRES_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=TestPostgresTLP test
           POSTGRES_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=TestPostgresNoREC test
           POSTGRES_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=TestPostgresCERT test
+          POSTGRES_AVAILABLE=true mvn -Djacoco.skip=true -Dtest=TestPostgresLateralJson test
 
   presto:
     name: DBMS Tests (Presto)

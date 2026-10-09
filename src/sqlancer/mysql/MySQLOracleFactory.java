@@ -15,6 +15,7 @@ import sqlancer.mysql.gen.MySQLExpressionGenerator;
 import sqlancer.mysql.oracle.MySQLDQEOracle;
 import sqlancer.mysql.oracle.MySQLDQPOracle;
 import sqlancer.mysql.oracle.MySQLFuzzer;
+import sqlancer.mysql.oracle.MySQLLateralJsonOracle;
 import sqlancer.mysql.oracle.MySQLPivotedQuerySynthesisOracle;
 
 public enum MySQLOracleFactory implements OracleFactory<MySQLGlobalState> {
@@ -105,6 +106,12 @@ public enum MySQLOracleFactory implements OracleFactory<MySQLGlobalState> {
                     // beyond the SELECT-based expression errors.
                     .with(MySQLErrors.getDMLErrors()).build();
             return new EETDMLOracle<>(globalState, gen, expectedErrors);
+        }
+    },
+    LATERAL_JSON {
+        @Override
+        public TestOracle<MySQLGlobalState> create(MySQLGlobalState globalState) throws SQLException {
+            return new MySQLLateralJsonOracle(globalState);
         }
     };
 }

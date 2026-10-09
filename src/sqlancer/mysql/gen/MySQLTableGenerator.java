@@ -374,7 +374,7 @@ public class MySQLTableGenerator {
             if (Randomly.getBoolean() && !globalState.getDbmsSpecificOptions().getTestOracleFactory().stream()
                     .anyMatch(o -> o == MySQLOracleFactory.TLP_WHERE || o == MySQLOracleFactory.PQS
                             || o == MySQLOracleFactory.DQP || o == MySQLOracleFactory.EET
-                            || o == MySQLOracleFactory.EET_DML)) {
+                            || o == MySQLOracleFactory.EET_DML || o == MySQLOracleFactory.LATERAL_JSON)) {
                 sb.append(" ZEROFILL");
             }
         }

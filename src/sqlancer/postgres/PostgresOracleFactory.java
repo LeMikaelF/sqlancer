@@ -16,6 +16,7 @@ import sqlancer.common.query.SQLancerResultSet;
 import sqlancer.postgres.gen.PostgresCommon;
 import sqlancer.postgres.gen.PostgresExpressionGenerator;
 import sqlancer.postgres.oracle.PostgresFuzzer;
+import sqlancer.postgres.oracle.PostgresLateralJsonOracle;
 import sqlancer.postgres.oracle.PostgresPivotedQuerySynthesisOracle;
 import sqlancer.postgres.oracle.tlp.PostgresTLPAggregateOracle;
 import sqlancer.postgres.oracle.tlp.PostgresTLPHavingOracle;
@@ -112,6 +113,12 @@ public enum PostgresOracleFactory implements OracleFactory<PostgresGlobalState> 
             return new PostgresFuzzer(globalState);
         }
 
+    },
+    LATERAL_JSON {
+        @Override
+        public TestOracle<PostgresGlobalState> create(PostgresGlobalState globalState) throws SQLException {
+            return new PostgresLateralJsonOracle(globalState);
+        }
     };
 
 }
