@@ -64,7 +64,9 @@ final class LateralQueryGenerator {
             usedTables.add(innerTable);
             List<LateralTable> subqueryTables = new ArrayList<>();
             subqueryTables.add(innerTable);
-            int joinedTableCount = (int) Randomly.getNotCachedInteger(0, MAX_JOINED_TABLES + 1);
+            JoinType joinType = Randomly.fromOptions(JoinType.values());
+            int joinedTableCount = joinType == JoinType.LEFT && !oracle.leftJoinCanReadManyTables() ? 0
+                    : (int) Randomly.getNotCachedInteger(0, MAX_JOINED_TABLES + 1);
             for (int i = 0; i < joinedTableCount; i++) {
                 LateralTable joinedTable = pickSubqueryTable(usedTables, MAX_RESULT_ROWS / maxRows);
                 if (joinedTable == null) {
@@ -74,7 +76,7 @@ final class LateralQueryGenerator {
                 usedTables.add(joinedTable);
                 subqueryTables.add(joinedTable);
             }
-            Join join = join(table, subqueryTables, visibleColumns, position);
+            Join join = join(joinType, table, subqueryTables, visibleColumns, position);
             if (laterJoinsCanRead(join)) {
                 List<SelectedColumn> columns = join.getSubquery().getColumns();
                 for (int column = 0; column < columns.size(); column++) {
@@ -93,11 +95,8 @@ final class LateralQueryGenerator {
     }
 
     private boolean laterJoinsCanRead(Join join) {
-        if (join.getType() != JoinType.LEFT) {
-            return true;
-        }
-        return (TRUE.equals(join.getOnClause()) || oracle.laterJoinsCanReadLeftJoinWithOnPredicate())
-                && (join.getSubquery().getTables().size() == 1 || oracle.laterJoinsCanReadLeftJoinOfManyTables());
+        return join.getType() != JoinType.LEFT || TRUE.equals(join.getOnClause())
+                || oracle.laterJoinsCanReadLeftJoinWithOnPredicate();
     }
 
     private static long rows(LateralTable table) {
@@ -128,8 +127,8 @@ final class LateralQueryGenerator {
         return Randomly.fromList(smallEnoughTables);
     }
 
-    private Join join(LateralTable outerTable, List<LateralTable> subqueryTables, List<VisibleColumn> visibleColumns,
-            int position) {
+    private Join join(JoinType joinType, LateralTable outerTable, List<LateralTable> subqueryTables,
+            List<VisibleColumn> visibleColumns, int position) {
         List<String> aliases = new ArrayList<>();
         List<List<LocalColumn>> columnsPerTable = new ArrayList<>();
         for (int index = 0; index < subqueryTables.size(); index++) {
@@ -139,7 +138,6 @@ final class LateralQueryGenerator {
         }
         List<LocalColumn> localColumns = columnsPerTable.stream().flatMap(List::stream).collect(Collectors.toList());
 
-        JoinType joinType = Randomly.fromOptions(JoinType.values());
         boolean distinct = Randomly.getPercentage() < 0.2;
         Integer limit = Randomly.getPercentage() < 0.3 ? 1 + (int) Randomly.getNotCachedInteger(0, MAX_LIMIT) : null;
         boolean canSelectOuterColumns = joinType != JoinType.LEFT || oracle.leftJoinCanSelectOuterColumns();

@@ -65,11 +65,12 @@ public class TestLateralJsonOracle {
                 Subquery subquery = join.getSubquery();
                 for (Comparison comparison : comparisons(subquery)) {
                     assertNotEquals(ComparisonOperator.IS_NOT_DISTINCT_FROM, comparison.getOperator());
-                    assertFalse(readsHiddenLeftJoin(query, comparison.getLeft()));
-                    assertFalse(readsHiddenLeftJoin(query, comparison.getRight()));
+                    assertFalse(readsLeftJoinWithOnPredicate(query, comparison.getLeft()));
+                    assertFalse(readsLeftJoinWithOnPredicate(query, comparison.getRight()));
                 }
                 if (join.getType() == JoinType.LEFT) {
                     assertFalse(subquery.isFilterWithOr());
+                    assertEquals(1, subquery.getTables().size());
                     Set<String> ownAliases = aliases(subquery);
                     for (SelectedColumn column : subquery.getColumns()) {
                         assertTrue(column.getSource().isTableColumn()
@@ -77,7 +78,7 @@ public class TestLateralJsonOracle {
                     }
                 }
                 for (SelectedColumn column : subquery.getColumns()) {
-                    assertFalse(readsHiddenLeftJoin(query, column.getSource()));
+                    assertFalse(readsLeftJoinWithOnPredicate(query, column.getSource()));
                 }
             }
         }
@@ -244,13 +245,12 @@ public class TestLateralJsonOracle {
         return type;
     }
 
-    private static boolean readsHiddenLeftJoin(LateralQuery query, ColumnRef column) {
+    private static boolean readsLeftJoinWithOnPredicate(LateralQuery query, ColumnRef column) {
         if (column.isTableColumn()) {
             return false;
         }
         Join join = query.getJoins().get(column.getJoin());
-        return join.getType() == JoinType.LEFT
-                && (!"TRUE".equals(join.getOnClause()) || join.getSubquery().getTables().size() > 1);
+        return join.getType() == JoinType.LEFT && !"TRUE".equals(join.getOnClause());
     }
 
     private static Set<String> aliases(Subquery subquery) {
@@ -326,7 +326,7 @@ public class TestLateralJsonOracle {
         }
 
         @Override
-        protected boolean laterJoinsCanReadLeftJoinOfManyTables() {
+        protected boolean leftJoinCanReadManyTables() {
             return !avoidKnownBugs;
         }
 

@@ -99,6 +99,14 @@ public final class MySQLBugs {
     // SELECT COUNT(*) FROM t AS o JOIN t AS i0 ON i0.c0 = o.c0
     // LEFT JOIN (t AS i1 JOIN t AS i2 ON TRUE) ON o.c0 = i2.c0 AND i2.c0 > 0
     // LEFT JOIN t AS i3 ON i1.c0 = o.c0 AND i3.c0 = o.c0; -- returns 1, but must return 2
+    // MySQL can also apply a condition on a later table to a table of such a LEFT JOIN, if both tables are equal to
+    // the same column of the outer table. This test case fails on a new table, before ANALYZE TABLE:
+    // CREATE TABLE t0(c0 MEDIUMTEXT, KEY i0 (c0(3)));
+    // INSERT INTO t0 VALUES (NULL), ('');
+    // SELECT COUNT(*) FROM t0 AS o
+    // LEFT JOIN LATERAL (SELECT i2.c0 FROM t0 AS i1 JOIN t0 AS i2 ON NOT (o.c0 <=> i2.c0) WHERE i2.c0 = o.c0) AS s0
+    // ON TRUE CROSS JOIN LATERAL (SELECT i3.c0 FROM t0 AS i3
+    // WHERE i3.c0 = o.c0 AND (i3.c0 IS NOT NULL) = ((i3.c0 > i3.c0) <> (NOT i3.c0))) AS s1; -- returns 0, must return 1
     public static boolean bugNestedLeftJoinConditionOnWrongTable = true;
 
     private MySQLBugs() {

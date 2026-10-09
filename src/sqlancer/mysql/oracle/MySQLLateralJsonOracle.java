@@ -200,7 +200,7 @@ public class MySQLLateralJsonOracle extends LateralJsonOracle<MySQLGlobalState> 
     }
 
     @Override
-    protected boolean laterJoinsCanReadLeftJoinOfManyTables() {
+    protected boolean leftJoinCanReadManyTables() {
         return !MySQLBugs.bugNestedLeftJoinConditionOnWrongTable;
     }
 
