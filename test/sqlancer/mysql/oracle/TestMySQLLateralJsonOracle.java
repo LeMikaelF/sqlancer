@@ -18,7 +18,9 @@ public class TestMySQLLateralJsonOracle {
     private static final LateralColumnType TEXT = new LateralColumnType("longtext CHARACTER SET utf8mb4",
             "utf8mb4_0900_ai_ci", "string");
     private static final LateralColumnType BINARY_TEXT = new LateralColumnType("longtext CHARACTER SET utf8mb4",
-            "utf8mb4_bin", "string");
+            "utf8mb4_0900_bin", "string");
+    private static final LateralColumnType LATIN1_TEXT = new LateralColumnType("tinytext CHARACTER SET latin1",
+            "latin1_swedish_ci", "string");
 
     private final MySQLLateralJsonOracle oracle = new MySQLLateralJsonOracle(null);
 
@@ -34,8 +36,13 @@ public class TestMySQLLateralJsonOracle {
 
     @Test
     public void canonicalFormMakesEqualValuesLookTheSame() {
-        assertEquals("utf8mb4_bin", oracle.canonicalType(TEXT).getCollation());
-        assertEquals("(s0.v0 COLLATE utf8mb4_bin)", oracle.canonicalExpression("s0.v0", TEXT));
+        assertEquals("utf8mb4_0900_bin", oracle.canonicalType(TEXT).getCollation());
+        assertEquals("(CONVERT(s0.v0 USING utf8mb4) COLLATE utf8mb4_0900_bin)",
+                oracle.canonicalExpression("s0.v0", TEXT));
+        assertEquals("longtext CHARACTER SET utf8mb4", oracle.canonicalType(LATIN1_TEXT).getName());
+        assertEquals("utf8mb4_0900_bin", oracle.canonicalType(LATIN1_TEXT).getCollation());
+        assertEquals("(CONVERT(s0.v0 USING utf8mb4) COLLATE utf8mb4_0900_bin)",
+                oracle.canonicalExpression("s0.v0", LATIN1_TEXT));
         assertEquals("double", oracle.canonicalType(FLOAT).getName());
         assertEquals("(s0.v0 + 0)", oracle.canonicalExpression("s0.v0", FLOAT));
         assertNull(oracle.canonicalType(INT));

@@ -52,6 +52,8 @@ public class MySQLLateralJsonOracle extends LateralJsonOracle<MySQLGlobalState> 
     private static final String TABLE_HINT = " USE INDEX ()";
     private static final String STRING = "string";
     private static final String NUMBER = "number";
+    private static final String CANONICAL_STRING_TYPE = "longtext CHARACTER SET utf8mb4";
+    private static final String NO_PAD_BINARY_COLLATION = "utf8mb4_0900_bin";
 
     private final Map<String, MySQLTable> tablesByName = new HashMap<>();
     private List<LateralTable> tables;
@@ -145,7 +147,7 @@ public class MySQLLateralJsonOracle extends LateralJsonOracle<MySQLGlobalState> 
     @Override
     protected LateralColumnType canonicalType(LateralColumnType type) {
         if (type.hasCollation()) {
-            return new LateralColumnType(type.getName(), binaryCollation(type), STRING);
+            return new LateralColumnType(CANONICAL_STRING_TYPE, NO_PAD_BINARY_COLLATION, STRING);
         }
         if (isFloatingPoint(type)) {
             return new LateralColumnType("double", null, NUMBER);
@@ -156,14 +158,9 @@ public class MySQLLateralJsonOracle extends LateralJsonOracle<MySQLGlobalState> 
     @Override
     protected String canonicalExpression(String expression, LateralColumnType type) {
         if (type.hasCollation()) {
-            return "(" + expression + " COLLATE " + binaryCollation(type) + ")";
+            return "(CONVERT(" + expression + " USING utf8mb4) COLLATE " + NO_PAD_BINARY_COLLATION + ")";
         }
         return "(" + expression + " + 0)";
-    }
-
-    private static String binaryCollation(LateralColumnType type) {
-        String collation = type.getCollation();
-        return collation.substring(0, collation.indexOf('_')) + "_bin";
     }
 
     private static boolean isFloatingPoint(LateralColumnType type) {
