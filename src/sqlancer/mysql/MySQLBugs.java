@@ -84,6 +84,16 @@ public final class MySQLBugs {
     // LEFT JOIN t AS i ON (s.c0 = i.c0) AND ((o.c0 = i.c0) OR FALSE); -- returns 6, but must return 2
     public static boolean bugLeftJoinEqualityOrFalse = true;
 
+    // Not reported yet. A regression in MySQL 26.7.0: if a LEFT JOIN joins two tables and its ON clause has a
+    // condition on the second table, MySQL applies the condition to the first table when a later LEFT JOIN compares
+    // the first table with the outer table:
+    // CREATE TABLE t(c0 INT);
+    // INSERT INTO t VALUES (NULL), (1);
+    // SELECT COUNT(*) FROM t AS o JOIN t AS i0 ON i0.c0 = o.c0
+    // LEFT JOIN (t AS i1 JOIN t AS i2 ON TRUE) ON o.c0 = i2.c0 AND i2.c0 > 0
+    // LEFT JOIN t AS i3 ON i1.c0 = o.c0 AND i3.c0 = o.c0; -- returns 1, but must return 2
+    public static boolean bugNestedLeftJoinConditionOnWrongTable = true;
+
     private MySQLBugs() {
     }
 

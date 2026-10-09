@@ -93,8 +93,11 @@ final class LateralQueryGenerator {
     }
 
     private boolean laterJoinsCanRead(Join join) {
-        return join.getType() != JoinType.LEFT || TRUE.equals(join.getOnClause())
-                || oracle.laterJoinsCanReadLeftJoinWithOnPredicate();
+        if (join.getType() != JoinType.LEFT) {
+            return true;
+        }
+        return (TRUE.equals(join.getOnClause()) || oracle.laterJoinsCanReadLeftJoinWithOnPredicate())
+                && (join.getSubquery().getTables().size() == 1 || oracle.laterJoinsCanReadLeftJoinOfManyTables());
     }
 
     private static long rows(LateralTable table) {

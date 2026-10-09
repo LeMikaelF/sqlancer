@@ -189,6 +189,16 @@ public abstract class LateralJsonOracle<G extends SQLGlobalState<?, ?>> implemen
     }
 
     /**
+     * Returns true if a LATERAL subquery can read the columns of an earlier LEFT JOIN whose subquery reads more than
+     * one table.
+     *
+     * @return false to hide the columns of such a join from the joins on its right
+     */
+    protected boolean laterJoinsCanReadLeftJoinOfManyTables() {
+        return true;
+    }
+
+    /**
      * Returns true if the WHERE clause of a LEFT JOIN LATERAL subquery can combine its correlation and its filter with
      * OR.
      *

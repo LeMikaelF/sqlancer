@@ -64,8 +64,8 @@ public class TestLateralJsonOracle {
                 Subquery subquery = join.getSubquery();
                 for (Comparison comparison : comparisons(subquery)) {
                     assertNotEquals(ComparisonOperator.IS_NOT_DISTINCT_FROM, comparison.getOperator());
-                    assertFalse(readsLeftJoinWithOnPredicate(query, comparison.getLeft()));
-                    assertFalse(readsLeftJoinWithOnPredicate(query, comparison.getRight()));
+                    assertFalse(readsHiddenLeftJoin(query, comparison.getLeft()));
+                    assertFalse(readsHiddenLeftJoin(query, comparison.getRight()));
                 }
                 if (join.getType() == JoinType.LEFT) {
                     assertFalse(subquery.isFilterWithOr());
@@ -76,7 +76,7 @@ public class TestLateralJsonOracle {
                     }
                 }
                 for (SelectedColumn column : subquery.getColumns()) {
-                    assertFalse(readsLeftJoinWithOnPredicate(query, column.getSource()));
+                    assertFalse(readsHiddenLeftJoin(query, column.getSource()));
                 }
             }
         }
@@ -232,12 +232,13 @@ public class TestLateralJsonOracle {
         return type;
     }
 
-    private static boolean readsLeftJoinWithOnPredicate(LateralQuery query, ColumnRef column) {
+    private static boolean readsHiddenLeftJoin(LateralQuery query, ColumnRef column) {
         if (column.isTableColumn()) {
             return false;
         }
         Join join = query.getJoins().get(column.getJoin());
-        return join.getType() == JoinType.LEFT && !"TRUE".equals(join.getOnClause());
+        return join.getType() == JoinType.LEFT
+                && (!"TRUE".equals(join.getOnClause()) || join.getSubquery().getTables().size() > 1);
     }
 
     private static Set<String> aliases(Subquery subquery) {
@@ -303,6 +304,11 @@ public class TestLateralJsonOracle {
 
         @Override
         protected boolean laterJoinsCanReadLeftJoinWithOnPredicate() {
+            return !avoidKnownBugs;
+        }
+
+        @Override
+        protected boolean laterJoinsCanReadLeftJoinOfManyTables() {
             return !avoidKnownBugs;
         }
 
